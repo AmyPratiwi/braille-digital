@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Braille Touch - Belajar Braille Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #FFFFFF;
+            font-family: system-ui, -apple-system, sans-serif;
+            touch-action: manipulation;
+        }
+        .braille-dot {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #333;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 4px solid transparent;
+        }
+        .braille-dot.active {
+            background-color: #FFD700; /* Warna Kuning Terang untuk Kontras */
+            box-shadow: 0 0 20px #FFD700;
+        }
+        .braille-dot:active {
+            transform: scale(0.9);
+        }
+        /* Animasi getaran visual jika browser tidak mendukung getaran fisik */
+        @keyframes visual-vibe {
+            0% { transform: translate(0); }
+            25% { transform: translate(2px, 2px); }
+            50% { transform: translate(-2px, -2px); }
+            75% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .vibrate-visual {
+            animation: visual-vibe 0.1s linear infinite;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <header class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-yellow-500 mb-2">Braille Touch</h1>
+        <p class="text-gray-400">Sentuh pola di bawah untuk merasakan huruf</p>
+    </header>
+
+    <!-- Panel Informasi Huruf -->
+    <div class="mb-8 text-center">
+        <div id="letter-display" class="text-9xl font-black text-white mb-2" aria-live="polite">A</div>
+        <p id="status-msg" class="text-xl text-yellow-400 h-8 font-medium"></p>
+    </div>
+
+    <!-- Grid Braille 2x3 -->
+    <div class="grid grid-cols-2 gap-6 bg-zinc-900 p-8 rounded-3xl shadow-2xl border-4 border-zinc-800" id="braille-grid">
+        <!-- Dot 1 & 4 -->
+        <div class="braille-dot" id="dot-1" data-dot="1" aria-label="Titik 1"></div>
+        <div class="braille-dot" id="dot-4" data-dot="4" aria-label="Titik 4"></div>
+        <!-- Dot 2 & 5 -->
+        <div class="braille-dot" id="dot-2" data-dot="2" aria-label="Titik 2"></div>
+        <div class="braille-dot" id="dot-5" data-dot="5" aria-label="Titik 5"></div>
+        <!-- Dot 3 & 6 -->
+        <div class="braille-dot" id="dot-3" data-dot="3" aria-label="Titik 3"></div>
+        <div class="braille-dot" id="dot-6" data-dot="6" aria-label="Titik 6"></div>
+    </div>
+
+    <!-- Kontrol Navigasi -->
+    <div class="flex gap-4 mt-10">
+        <button id="prev-btn" class="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-colors border-2 border-zinc-600">
+            SEBELUMNYA
+        </button>
+        <button id="next-btn" class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg transition-colors">
+            BERIKUTNYA
+        </button>
+    </div>
+
+    <div class="mt-8 text-zinc-500 text-sm max-w-xs text-center">
+        Tip: Gunakan perangkat seluler (Android) untuk merasakan getaran haptik secara nyata.
+    </div>
+
+    <script>
+        // Data Pola Braille A-Z (Sistem 6 titik)
+        const brailleAlphabet = {
+            'A': [1],
+            'B': [1, 2],
+            'C': [1, 4],
+            'D': [1, 4, 5],
+            'E': [1, 5],
+            'F': [1, 2, 4],
+            'G': [1, 2, 4, 5],
+            'H': [1, 2, 5],
+            'I': [2, 4],
+            'J': [2, 4, 5],
+            'K': [1, 3],
+            'L': [1, 2, 3],
+            'M': [1, 3, 4],
+            'N': [1, 3, 4, 5],
+            'O': [1, 3, 5],
+            'P': [1, 2, 3, 4],
+            'Q': [1, 2, 3, 4, 5],
+            'R': [1, 2, 3, 5],
+            'S': [2, 3, 4],
+            'T': [2, 3, 4, 5],
+            'U': [1, 3, 6],
+            'V': [1, 2, 3, 6],
+            'W': [2, 4, 5, 6],
+            'X': [1, 3, 4, 6],
+            'Y': [1, 3, 4, 5, 6],
+            'Z': [1, 3, 5, 6]
+        };
+
+        const alphabet = Object.keys(brailleAlphabet);
+        let currentIndex = 0;
+
+        const letterDisplay = document.getElementById('letter-display');
+        const statusMsg = document.getElementById('status-msg');
+        const dots = document.querySelectorAll('.braille-dot');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+
+        // Fungsi untuk mengaktifkan getaran
+        function triggerVibration(duration = 100) {
+            if ("vibrate" in navigator) {
+                navigator.vibrate(duration);
+            }
+        }
+
+        // Memperbarui tampilan grid Braille
+        function updateBrailleDisplay() {
+            const char = alphabet[currentIndex];
+            const activeDots = brailleAlphabet[char];
+            
+            letterDisplay.innerText = char;
+            statusMsg.innerText = `Huruf ${char}`;
+
+            dots.forEach(dot => {
+                const dotNumber = parseInt(dot.getAttribute('data-dot'));
+                if (activeDots.includes(dotNumber)) {
+                    dot.classList.add('active');
+                    dot.setAttribute('aria-pressed', 'true');
+                } else {
+                    dot.classList.remove('active');
+                    dot.setAttribute('aria-pressed', 'false');
+                }
+            });
+            
+            // Suara bantuan (Text-to-Speech sederhana)
+            speakLetter(`Huruf ${char}`);
+        }
+
+        function speakLetter(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance(text);
+                msg.lang = 'id-ID';
+                window.speechSynthesis.speak(msg);
+            }
+        }
+
+        // Event listener untuk titik
+        dots.forEach(dot => {
+            // Kita gunakan pointerdown agar responsif di mobile & desktop
+            dot.addEventListener('pointerdown', (e) => {
+                if (dot.classList.contains('active')) {
+                    triggerVibration(150);
+                    dot.classList.add('vibrate-visual');
+                    setTimeout(() => dot.classList.remove('vibrate-visual'), 200);
+                } else {
+                    // Getaran sangat pendek/lemah untuk titik kosong jika didukung
+                    triggerVibration(20);
+                }
+            });
+        });
+
+        // Navigasi
+        nextBtn.addEventListener('click', () => {
+            currentIndex = (currentIndex + 1) % alphabet.length;
+            updateBrailleDisplay();
+            triggerVibration(50);
+        });
+
+        prevBtn.addEventListener('click', () => {
+            currentIndex = (currentIndex - 1 + alphabet.length) % alphabet.length;
+            updateBrailleDisplay();
+            triggerVibration(50);
+        });
+
+        // Inisialisasi awal
+        window.onload = () => {
+            updateBrailleDisplay();
+            statusMsg.innerText = "Selamat Datang. Gunakan tombol di bawah.";
+        };
+    </script>
+</body>
+</html>
